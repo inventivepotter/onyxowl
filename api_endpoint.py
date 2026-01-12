@@ -4,7 +4,7 @@ FastAPI endpoint for privacy filter with reversible masking
 
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from privacy_filter import PrivacyFilter
 
 app = FastAPI(
@@ -49,10 +49,24 @@ class DemaskResponse(BaseModel):
 
 
 class LLMFlowRequest(BaseModel):
-    """Complete LLM flow: mask -> LLM -> demask"""
-    user_input: str = Field(..., description="User input with PII")
-    llm_response: Optional[str] = Field(None, description="LLM response to de-mask")
+    """Complete LLM flow: mask -> LLM -> demask
+
+    Note: either `user_input` or `llm_response` may be provided depending on
+    the step in the workflow. The endpoint enforces the required flow.
+    """
+    user_input: Optional[str] = Field(
+        None, description="User input with PII (provide for masking step)"
+    )
+    llm_response: Optional[str] = Field(
+        None, description="LLM response to de-mask (provide for de-masking step)"
+    )
     session_id: Optional[str] = Field(None, description="Session ID from previous mask")
+
+    @model_validator(mode="after")
+    def _validate_either(self):
+        if not getattr(self, "user_input", None) and not getattr(self, "llm_response", None):
+            raise ValueError("Either 'user_input' or 'llm_response' must be provided.")
+        return self
 
 
 class LLMFlowResponse(BaseModel):
