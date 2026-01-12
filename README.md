@@ -57,7 +57,8 @@ pip install -r requirements.txt
 python -m spacy download en_core_web_lg
 
 # Or use setup script
-./setup.sh
+pip install -e . #Install in editable mode
+
 ```
 
 ## 🚀 Quick Start
