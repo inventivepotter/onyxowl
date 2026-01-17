@@ -9,15 +9,15 @@ Get Privacy Filter running in **under 5 minutes** with Docker!
 make build && make run
 
 # 2. Test the API
-curl http://localhost:8000/health
+curl http://localhost:1001/health
 
 # 3. Try masking
-curl -X POST http://localhost:8000/mask \
+curl -X POST http://localhost:1001/mask \
   -H "Content-Type: application/json" \
   -d '{"text": "My email is john@example.com"}'
 
 # 4. View API docs
-open http://localhost:8000/docs
+open http://localhost:1001/docs
 ```
 
 Done! 🎉
@@ -45,7 +45,7 @@ docker-compose down
 python api_endpoint.py
 
 # 3. Test
-curl http://localhost:8000/health
+curl http://localhost:1001/health
 ```
 
 ## 📖 Next Steps
@@ -60,7 +60,7 @@ curl http://localhost:8000/health
 ### Mask sensitive data
 
 ```bash
-curl -X POST http://localhost:8000/mask \
+curl -X POST http://localhost:1001/mask \
   -H "Content-Type: application/json" \
   -d '{
     "text": "My email is alice@company.com and my card is 4532-1234-5678-9010"
@@ -83,7 +83,7 @@ curl -X POST http://localhost:8000/mask \
 ### De-mask text
 
 ```bash
-curl -X POST http://localhost:8000/demask \
+curl -X POST http://localhost:1001/demask \
   -H "Content-Type: application/json" \
   -d '{
     "masked_text": "I will email <EMAIL_ADDRESS_1>",
@@ -132,7 +132,7 @@ make help        # Show all commands
 
 ```bash
 # Use different port
-docker run -p 8001:8000 privacy-filter:latest
+docker run -p 8001:1001 privacy-filter:latest
 ```
 
 ### Container exits immediately

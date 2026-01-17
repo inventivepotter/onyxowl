@@ -32,8 +32,8 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download spaCy model (optional, GLiNER is primary)
-RUN python -m spacy download en_core_web_sm || echo "spaCy model download skipped"
+# Download spaCy model (en_core_web_lg required by Presidio)
+RUN python -m spacy download en_core_web_lg
 
 # Pre-download GLiNER model to cache it
 COPY download_models.py .
@@ -57,42 +57,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy virtual environment from builder
-COPY --from=builder /opt/venv /opt/venv
+# Copy virtual environment from builder (chown to appuser for write access)
+COPY --from=builder --chown=appuser:appuser /opt/venv /opt/venv
 
-# Copy GLiNER model cache from builder (if downloaded)
-COPY --from=builder /root/.cache /root/.cache
+# Create non-root user for security
+RUN useradd -m -u 1000 appuser
+
+# Copy GLiNER model cache from builder to appuser's home
+COPY --from=builder --chown=appuser:appuser /root/.cache /home/appuser/.cache
 
 # Set environment variables
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     # GLiNER settings
-    TRANSFORMERS_CACHE=/root/.cache/huggingface \
-    HF_HOME=/root/.cache/huggingface \
+    TRANSFORMERS_CACHE=/home/appuser/.cache/huggingface \
+    HF_HOME=/home/appuser/.cache/huggingface \
     # Uvicorn settings
     HOST=0.0.0.0 \
-    PORT=8000 \
+    PORT=1001 \
     WORKERS=1 \
     LOG_LEVEL=info
 
 # Copy application code
-COPY privacy_filter.py .
-COPY api_endpoint.py .
-
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app /root/.cache
+COPY --chown=appuser:appuser privacy_filter.py .
+COPY --chown=appuser:appuser api_endpoint.py .
 
 # Switch to non-root user
 USER appuser
 
 # Expose port
-EXPOSE 8000
+EXPOSE 1001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+    CMD python -c "import requests; requests.get('http://localhost:1001/health')" || exit 1
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "api_endpoint:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "api_endpoint:app", "--host", "0.0.0.0", "--port", "1001"]

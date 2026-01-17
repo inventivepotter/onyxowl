@@ -56,7 +56,7 @@ docker build -t privacy-filter:latest .
 # Run
 docker run -d \
   --name privacy-filter-api \
-  -p 8000:8000 \
+  -p 1001:1001 \
   privacy-filter:latest
 
 # Check logs
@@ -163,7 +163,7 @@ docker build --no-cache -t privacy-filter:latest .
 ```bash
 docker run -d \
   --name privacy-filter-api \
-  -p 8000:8000 \
+  -p 1001:1001 \
   privacy-filter:latest
 ```
 
@@ -172,7 +172,7 @@ docker run -d \
 ```bash
 docker run -d \
   --name privacy-filter-api \
-  -p 8000:8000 \
+  -p 1001:1001 \
   -e WORKERS=4 \
   -e LOG_LEVEL=debug \
   privacy-filter:latest
@@ -184,7 +184,7 @@ docker run -d \
 # Persist model cache
 docker run -d \
   --name privacy-filter-api \
-  -p 8000:8000 \
+  -p 1001:1001 \
   -v gliner-cache:/root/.cache/huggingface \
   privacy-filter:latest
 ```
@@ -194,7 +194,7 @@ docker run -d \
 ```bash
 docker run -d \
   --name privacy-filter-api \
-  -p 8000:8000 \
+  -p 1001:1001 \
   --memory="2g" \
   --cpus="2" \
   privacy-filter:latest
@@ -252,9 +252,9 @@ services:
 ```nginx
 # nginx.conf
 upstream privacy_filter {
-    server privacy-filter-1:8000;
-    server privacy-filter-2:8000;
-    server privacy-filter-3:8000;
+    server privacy-filter-1:1001;
+    server privacy-filter-2:1001;
+    server privacy-filter-3:1001;
 }
 
 server {
@@ -286,7 +286,7 @@ nano .env
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `HOST` | `0.0.0.0` | API host |
-| `PORT` | `8000` | API port |
+| `PORT` | `1001` | API port |
 | `WORKERS` | `1` | Uvicorn workers |
 | `LOG_LEVEL` | `info` | Logging level |
 | `USE_REDIS` | `false` | Enable Redis |
@@ -305,7 +305,7 @@ services:
       - LOG_LEVEL=debug
       - WORKERS=2
     ports:
-      - "8080:8000"  # Custom port
+      - "8080:1001"  # Custom port
 ```
 
 ## 🔍 Monitoring & Debugging
@@ -343,7 +343,7 @@ docker exec privacy-filter-api pip list
 docker inspect --format='{{.State.Health.Status}}' privacy-filter-api
 
 # Manual health check
-curl http://localhost:8000/health
+curl http://localhost:1001/health
 ```
 
 ### Resource Usage
@@ -409,15 +409,15 @@ make prod
 
 ### Issue: Port Already in Use
 
-**Error**: `Bind for 0.0.0.0:8000 failed: port is already allocated`
+**Error**: `Bind for 0.0.0.0:1001 failed: port is already allocated`
 
 **Solution**:
 ```bash
 # Use different port
-docker run -p 8001:8000 privacy-filter:latest
+docker run -p 8001:1001 privacy-filter:latest
 
 # Or stop conflicting container
-docker ps | grep 8000
+docker ps | grep 1001
 docker stop <container-id>
 ```
 
@@ -543,7 +543,7 @@ spec:
       - name: privacy-filter
         image: privacy-filter:latest
         ports:
-        - containerPort: 8000
+        - containerPort: 1001
         resources:
           limits:
             memory: "2Gi"

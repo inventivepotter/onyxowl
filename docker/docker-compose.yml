@@ -4,38 +4,40 @@ services:
   # Privacy Filter API
   privacy-filter:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile
       target: runtime
     image: privacy-filter:latest
     container_name: privacy-filter-api
     ports:
-      - "8000:8000"
+      - "1001:1001"
     environment:
       # API Settings
       - HOST=0.0.0.0
-      - PORT=8000
+      - PORT=1001
       - WORKERS=1
       - LOG_LEVEL=info
       # GLiNER Settings
-      - TRANSFORMERS_CACHE=/root/.cache/huggingface
-      - HF_HOME=/root/.cache/huggingface
-      # Redis connection (optional - uncomment when using Redis)
-      # - REDIS_HOST=redis
-      # - REDIS_PORT=6379
-      # - REDIS_DB=0
+      - TRANSFORMERS_CACHE=/home/appuser/.cache/huggingface
+      - HF_HOME=/home/appuser/.cache/huggingface
+      # NATS connection
+      - NATS_URL=nats://nats:4222
+      - SESSION_TTL_SECONDS=900
     volumes:
-      # Cache models persistently (optional)
-      - gliner-cache:/root/.cache/huggingface
+      # Cache models persistently
+      - gliner-cache:/home/appuser/.cache/huggingface
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:1001/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
     networks:
       - privacy-filter-network
+    depends_on:
+      nats:
+        condition: service_healthy
     # Resource limits (adjust based on your needs)
     deploy:
       resources:
@@ -46,32 +48,32 @@ services:
           cpus: '1'
           memory: 1G
 
-  # Redis for session storage (optional - for production)
-  # Uncomment to enable Redis-based session management
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: privacy-filter-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   command: redis-server --appendonly yes
-  #   restart: unless-stopped
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   networks:
-  #     - privacy-filter-network
+  # NATS for session storage
+  nats:
+    image: nats:2.10-alpine
+    container_name: privacy-filter-nats
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    command: ["--jetstream", "--store_dir=/data", "-m", "8222"]
+    volumes:
+      - nats-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    networks:
+      - privacy-filter-network
 
 volumes:
   # Persist GLiNER model cache
   gliner-cache:
     driver: local
-  # Persist Redis data (if using Redis)
-  # redis-data:
-  #   driver: local
+  # Persist NATS JetStream data
+  nats-data:
+    driver: local
 
 networks:
   privacy-filter-network:

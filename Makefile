@@ -4,7 +4,7 @@
 IMAGE_NAME = privacy-filter
 IMAGE_TAG = latest
 CONTAINER_NAME = privacy-filter-api
-PORT = 8000
+PORT = 1001
 
 # Default target
 help:
@@ -35,14 +35,14 @@ help:
 # Development commands
 build:
 	@echo "Building Docker image..."
-	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .
+	docker build -t $(IMAGE_NAME):$(IMAGE_TAG) -f docker/Dockerfile .
 
 run: build
 	@echo "Running container..."
 	docker run -d \
 		--name $(CONTAINER_NAME) \
-		-p $(PORT):8000 \
-		-v gliner-cache:/root/.cache/huggingface \
+		-p $(PORT):1001 \
+		-v gliner-cache:/home/appuser/.cache/huggingface \
 		$(IMAGE_NAME):$(IMAGE_TAG)
 	@echo "Container started at http://localhost:$(PORT)"
 	@echo "API docs: http://localhost:$(PORT)/docs"
@@ -50,8 +50,8 @@ run: build
 start:
 	@echo "Starting with docker-compose..."
 	docker-compose up -d
-	@echo "Container started at http://localhost:8000"
-	@echo "API docs: http://localhost:8000/docs"
+	@echo "Container started at http://localhost:1001"
+	@echo "API docs: http://localhost:1001/docs"
 
 stop:
 	@echo "Stopping container..."

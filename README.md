@@ -1,14 +1,19 @@
 # Privacy Filter with GLiNER + Presidio
 
-Simple privacy filter with **reversible masking** using hash maps. Masks PII before sending to LLM, then de-masks the response.
+Production-ready privacy filter with **reversible masking** using hash maps. Masks PII before sending to LLM, then de-masks the response.
+
+[![Tests](https://img.shields.io/badge/tests-610%2B%20passing-brightgreen)]() [![Coverage](https://img.shields.io/badge/coverage-comprehensive-blue)]() [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]() [![Docker](https://img.shields.io/badge/docker-ready-blue)]()
+
+**Quick Stats**: 610+ test cases | 70+ entity types | 15+ countries | Hybrid ML + Regex detection
 
 ## 🎯 Key Features
 
-- **GLiNER Integration**: Zero-shot entity detection (better than spaCy)
+- **Hybrid Detection**: GLiNER ML + comprehensive regex patterns (70+ entity types)
 - **Reversible Masking**: Hash map-based token mapping for de-masking
-- **70+ Entity Types**: Email, phone, SSN, credit cards, crypto addresses, API keys, etc.
-- **FastAPI Endpoint**: Production-ready REST API
-- **Session Management**: Secure token storage and cleanup
+- **610+ Test Cases**: Comprehensive coverage across emails, phones, credit cards, SSNs, crypto
+- **Multi-Country Support**: 15+ countries for phones, 7+ for national IDs
+- **FastAPI REST API**: Production-ready endpoints with session management
+- **Docker Ready**: Multi-stage builds, optimized for production
 
 ## 🏗️ Architecture
 
@@ -38,11 +43,11 @@ make build
 make run
 
 # Or using docker-compose
-docker-compose up -d
+cd docker && docker-compose up -d
 
 # Or using Docker CLI
-docker build -t privacy-filter:latest .
-docker run -d -p 8000:8000 privacy-filter:latest
+docker build -f docker/Dockerfile -t privacy-filter:latest .
+docker run -d -p 1001:1001 privacy-filter:latest
 ```
 
 **Benefits**: Pre-built image with all dependencies, ready to use! See [DOCKER.md](DOCKER.md) for details.
@@ -50,14 +55,14 @@ docker run -d -p 8000:8000 privacy-filter:latest
 ### Option 2: Local Installation
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Install package with dependencies
+pip install -e .
+
+# Or install with dev/api extras
+pip install -e ".[dev,api]"
 
 # Download spaCy model (optional, GLiNER is primary)
-python -m spacy download en_core_web_lg
-
-# Or use setup script
-./setup.sh
+python -m spacy download en_core_web_sm
 ```
 
 ## 🚀 Quick Start
@@ -96,7 +101,7 @@ print(demasked.original_text)
 make start
 
 # Or using docker-compose
-docker-compose up -d
+cd docker && docker-compose up -d
 
 # View logs
 make logs
@@ -104,25 +109,28 @@ make logs
 
 **Local:**
 ```bash
-# Start server
-python api_endpoint.py
+# Start server (option 1)
+python -m api.main
 
-# Server runs on http://localhost:8000
-# API docs: http://localhost:8000/docs
+# Or with uvicorn directly (option 2)
+uvicorn api.main:app --host 0.0.0.0 --port 1001
+
+# Server runs on http://localhost:1001
+# API docs: http://localhost:1001/docs
 ```
 
 #### API Endpoints
 
 **Mask Text**
 ```bash
-curl -X POST "http://localhost:8000/mask" \
+curl -X POST "http://localhost:1001/mask" \
   -H "Content-Type: application/json" \
   -d '{"text": "My email is john@example.com"}'
 ```
 
 **De-mask Text**
 ```bash
-curl -X POST "http://localhost:8000/demask" \
+curl -X POST "http://localhost:1001/demask" \
   -H "Content-Type: application/json" \
   -d '{
     "masked_text": "Send confirmation to <EMAIL_ADDRESS_1>",
@@ -133,12 +141,12 @@ curl -X POST "http://localhost:8000/demask" \
 **Complete LLM Flow**
 ```bash
 # Step 1: Mask user input
-curl -X POST "http://localhost:8000/llm-flow" \
+curl -X POST "http://localhost:1001/llm-flow" \
   -H "Content-Type: application/json" \
   -d '{"user_input": "My email is alice@company.com"}'
 
 # Step 2: De-mask LLM response
-curl -X POST "http://localhost:8000/llm-flow" \
+curl -X POST "http://localhost:1001/llm-flow" \
   -H "Content-Type: application/json" \
   -d '{
     "llm_response": "I will email <EMAIL_ADDRESS_1>",
@@ -153,7 +161,7 @@ import requests
 from openai import OpenAI
 
 # Initialize
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:1001"
 openai_client = OpenAI()
 
 # User input with PII
@@ -199,17 +207,31 @@ requests.delete(f"{BASE_URL}/session/{session_id}")
 
 ## 🔍 Supported Entity Types
 
-### Personal Information
+### Personal Information (270 test cases)
+- `EMAIL_ADDRESS` - 120+ variations (Unicode, international domains, edge cases)
+- `PHONE_NUMBER` - 150+ variations across 15+ countries (US, UK, India, Australia, Germany, France, Japan, China, Brazil, Mexico, Korea, Spain, Italy)
 - `PERSON` - Names
-- `EMAIL_ADDRESS` - Email addresses
-- `PHONE_NUMBER` - Phone numbers
-- `US_SSN` - Social Security Numbers
 
-### Financial
-- `CREDIT_CARD` - Credit card numbers
-- `BITCOIN_ADDRESS` - Bitcoin addresses
-- `ETHEREUM_ADDRESS` - Ethereum addresses
+### Financial (140 test cases)
+- `CREDIT_CARD` - Visa, Mastercard, Amex, Discover, JCB, Diners Club, Maestro, UnionPay
 - `IBAN_CODE` - IBAN codes
+
+### National IDs (100 test cases)
+- `US_SSN` - US Social Security Numbers
+- `UK_NINO` - UK National Insurance Number
+- `CANADIAN_SIN` - Canadian Social Insurance Number
+- `AUSTRALIAN_TFN` - Australian Tax File Number
+- `INDIAN_AADHAAR` - Indian Aadhaar Number
+- `GERMAN_TAX_ID` - German Tax ID
+- `FRENCH_INSEE` - French INSEE Number
+
+### Cryptocurrency (100 test cases)
+- `BITCOIN_ADDRESS` - Bitcoin (Legacy & SegWit)
+- `ETHEREUM_ADDRESS` - Ethereum
+- `LITECOIN_ADDRESS` - Litecoin
+- `DOGECOIN_ADDRESS` - Dogecoin
+- `RIPPLE_ADDRESS` - Ripple (XRP)
+- `MONERO_ADDRESS` - Monero
 
 ### Secrets & Credentials
 - `AWS_ACCESS_KEY_ID` - AWS keys
@@ -223,6 +245,8 @@ requests.delete(f"{BASE_URL}/session/{session_id}")
 
 ### Health
 - `MEDICAL_LICENSE` - Medical licenses
+
+**Total: 610+ comprehensive test cases** covering global formats and edge cases.
 
 ## 🎨 Advanced Features
 
@@ -273,13 +297,54 @@ This format is:
 
 ## 🧪 Testing
 
+### Run Examples
 ```bash
-# Run examples
-python example_usage.py
-
-# Run tests (TODO: create tests)
-pytest tests/
+# Run example usage
+python examples/usage.py
 ```
+
+### Run Test Suite (610+ tests)
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage report
+pytest tests/ --cov=src/privacy_filter --cov-report=html
+
+# Run tests in parallel (faster)
+pytest tests/ -n auto
+```
+
+### Run Tests by Category
+
+```bash
+# Email tests (120 cases)
+pytest tests/test_emails.py -v
+
+# Phone tests (150 cases)
+pytest tests/test_phones.py -v
+
+# Credit card tests (140 cases)
+pytest tests/test_credit_cards.py -v
+
+# SSN/National ID tests (100 cases)
+pytest tests/test_ssn.py -v
+
+# Cryptocurrency tests (100 cases)
+pytest tests/test_crypto.py -v
+```
+
+### Test Coverage
+
+| Category | Test Cases | Coverage |
+|----------|-----------|----------|
+| Emails | 120 | Unicode, international, edge cases |
+| Phone Numbers | 150 | 15+ countries |
+| Credit Cards | 140 | All major card types |
+| SSN/National IDs | 100 | 7 countries |
+| Cryptocurrency | 100 | 5+ currencies |
+| **Total** | **610+** | **Comprehensive global coverage** |
 
 ## 🚧 Production Deployment
 
@@ -290,13 +355,13 @@ pytest tests/
 make prod
 
 # Or using docker-compose
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+cd docker && docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Check status
-docker-compose ps
+cd docker && docker-compose ps
 
 # View logs
-docker-compose logs -f
+cd docker && docker-compose logs -f
 ```
 
 **Production features included**:
@@ -358,17 +423,20 @@ async def mask_text(request: MaskRequest):
     # ... existing code ...
 ```
 
-## 📝 TODO
+## 📝 Roadmap
 
-- [ ] Add comprehensive tests
-- [ ] Add session expiration (TTL)
-- [ ] Integrate with Redis for session storage
-- [ ] Add authentication/authorization
-- [ ] Add rate limiting
-- [ ] Add monitoring/logging
-- [ ] Add more entity types
-- [ ] Add confidence thresholds
-- [ ] Add batch processing
+- [x] Comprehensive tests (610+ test cases)
+- [x] Multi-country support (15+ countries)
+- [x] Docker deployment with production config
+- [x] Hybrid detection (GLiNER + regex)
+- [ ] Session expiration (TTL) with Redis
+- [ ] Authentication/authorization
+- [ ] Rate limiting
+- [ ] Monitoring/logging (Prometheus/Grafana)
+- [ ] Confidence thresholds configuration
+- [ ] Batch processing API
+- [ ] Canary token injection (leak detection)
+- [ ] Hallucination detection integration
 
 ## 🤔 Why GLiNER over spaCy?
 
@@ -401,12 +469,14 @@ make help
 ### Docker Files Structure
 
 ```
+docker/
 ├── Dockerfile                 # Multi-stage builder pattern
 ├── docker-compose.yml         # Development configuration
 ├── docker-compose.prod.yml    # Production with Redis
-├── .dockerignore              # Optimize build context
-├── Makefile                   # Convenient commands
-└── DOCKER.md                  # Complete Docker guide
+└── .dockerignore              # Optimize build context
+
+Makefile                       # Convenient commands (root)
+DOCKER.md                      # Complete Docker guide
 ```
 
 ### Image Specifications
@@ -424,12 +494,55 @@ See [DOCKER.md](DOCKER.md) for complete deployment guide including:
 - Performance optimization
 - Security best practices
 
+## 📁 Project Structure
+
+```
+onyxowl/
+├── src/privacy_filter/        # Main package
+│   ├── __init__.py           # Package exports
+│   ├── core.py               # PrivacyFilter class
+│   ├── gliner_engine.py      # GLiNER + regex detection
+│   ├── models.py             # Data models & enums
+│   └── patterns.py           # Comprehensive regex patterns
+│
+├── tests/                     # Test suite (610+ cases)
+│   ├── conftest.py           # Pytest configuration
+│   ├── test_emails.py        # 120 email tests
+│   ├── test_phones.py        # 150 phone tests
+│   ├── test_credit_cards.py  # 140 credit card tests
+│   ├── test_ssn.py           # 100 SSN/ID tests
+│   ├── test_crypto.py        # 100 crypto tests
+│   └── fixtures/test_data.py # Test data
+│
+├── api/                       # FastAPI application
+│   ├── __init__.py
+│   └── main.py               # API endpoints
+│
+├── examples/                  # Usage examples
+│   └── usage.py
+│
+├── docker/                    # Docker configuration
+│   ├── Dockerfile
+│   ├── docker-compose.yml
+│   ├── docker-compose.prod.yml
+│   └── .dockerignore
+│
+├── setup.py                   # Package setup
+├── pyproject.toml            # Modern Python config
+├── requirements.txt          # Dependencies
+├── Makefile                  # Convenience commands
+└── README.md                 # This file
+```
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed documentation.
+
 ## 📚 References
 
 - [GLiNER Paper](https://arxiv.org/abs/2311.08526)
 - [Presidio Documentation](https://microsoft.github.io/presidio/)
-- [Privacy Filter Plan](privacy-filter-guardrail-plan.md)
+- [Project Structure](PROJECT_STRUCTURE.md)
 - [Docker Deployment Guide](DOCKER.md)
+- [LLM Security Ideas](LLM_SECURITY_IDEAS.md)
 
 ## 📄 License
 

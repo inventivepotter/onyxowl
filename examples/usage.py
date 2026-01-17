@@ -128,7 +128,7 @@ def example_api_usage():
 python api_endpoint.py
 
 # 1. Mask sensitive data
-curl -X POST "http://localhost:8000/mask" \\
+curl -X POST "http://localhost:1001/mask" \\
   -H "Content-Type: application/json" \\
   -d '{
     "text": "Email me at john@example.com or call (555) 123-4567"
@@ -146,7 +146,7 @@ curl -X POST "http://localhost:8000/mask" \\
 # }
 
 # 2. De-mask text
-curl -X POST "http://localhost:8000/demask" \\
+curl -X POST "http://localhost:1001/demask" \\
   -H "Content-Type: application/json" \\
   -d '{
     "masked_text": "Send confirmation to <EMAIL_ADDRESS_1>",
@@ -161,14 +161,14 @@ curl -X POST "http://localhost:8000/demask" \\
 
 # 3. Complete LLM flow
 # Step 1: Mask user input
-curl -X POST "http://localhost:8000/llm-flow" \\
+curl -X POST "http://localhost:1001/llm-flow" \\
   -H "Content-Type: application/json" \\
   -d '{
     "user_input": "My email is alice@company.com"
   }'
 
 # Step 2: De-mask LLM response
-curl -X POST "http://localhost:8000/llm-flow" \\
+curl -X POST "http://localhost:1001/llm-flow" \\
   -H "Content-Type: application/json" \\
   -d '{
     "llm_response": "I will send confirmation to <EMAIL_ADDRESS_1>",
@@ -176,7 +176,7 @@ curl -X POST "http://localhost:8000/llm-flow" \\
   }'
 
 # 4. Clear session
-curl -X DELETE "http://localhost:8000/session/abc-123-def-456"
+curl -X DELETE "http://localhost:1001/session/abc-123-def-456"
     """)
 
 
@@ -190,7 +190,7 @@ def example_with_python_requests():
 import requests
 
 # API base URL
-BASE_URL = "http://localhost:8000"
+BASE_URL = "http://localhost:1001"
 
 # 1. Mask user input
 mask_response = requests.post(

@@ -141,7 +141,7 @@ print(original.original_text)  # "Email john@example.com"
 python -m api.main
 
 # Or with uvicorn
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+uvicorn api.main:app --host 0.0.0.0 --port 1001
 ```
 
 ## Running Tests

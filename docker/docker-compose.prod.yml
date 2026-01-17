@@ -9,15 +9,11 @@ services:
       # Production settings
       - WORKERS=4  # Multiple workers for production
       - LOG_LEVEL=warning
-      # Redis session storage
-      - USE_REDIS=true
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - SESSION_TTL=300  # 5 minutes
+      # NATS session storage
+      - NATS_URL=nats://nats:4222
+      - SESSION_TTL_SECONDS=900  # 15 minutes
     depends_on:
-      redis:
+      nats:
         condition: service_healthy
     deploy:
       replicas: 2  # Run 2 instances for HA
@@ -29,31 +25,37 @@ services:
           cpus: '2'
           memory: 2G
 
-  redis:
-    image: redis:7-alpine
-    container_name: privacy-filter-redis
+  nats:
+    image: nats:2.10-alpine
+    container_name: privacy-filter-nats
     ports:
-      - "6379:6379"
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP monitoring
+    command:
+      - "--jetstream"
+      - "--store_dir=/data"
+      - "--max_memory_store=1GB"
+      - "--max_file_store=10GB"
+      - "-m"
+      - "8222"
     volumes:
-      - redis-data:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
-    command: redis-server /usr/local/etc/redis/redis.conf
+      - nats-data:/data
     restart: always
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
     networks:
       - privacy-filter-network
     deploy:
       resources:
         limits:
-          cpus: '1'
+          cpus: '0.5'
           memory: 512M
         reservations:
-          cpus: '0.5'
-          memory: 256M
+          cpus: '0.25'
+          memory: 128M
 
   # Nginx reverse proxy (optional)
   nginx:
@@ -72,7 +74,7 @@ services:
       - privacy-filter-network
 
 volumes:
-  redis-data:
+  nats-data:
     driver: local
 
 networks:
