@@ -102,7 +102,7 @@ curl -X POST http://localhost:1001/demask \
 ## 🚀 Production Deployment
 
 ```bash
-# Start with Redis and multiple workers
+# Start with NATS and multiple workers
 make prod
 
 # Or manually

@@ -1,16 +1,10 @@
 """
-Simple tests for Privacy Filter
-Run with: pytest test_privacy_filter.py -v
+Tests for core Privacy Filter functionality
+Run with: pytest tests/test_core.py -v
 """
 
 import pytest
 from privacy_filter import PrivacyFilter, MaskingResult, DemaskingResult
-
-
-@pytest.fixture
-def filter_instance():
-    """Create filter instance for testing"""
-    return PrivacyFilter(use_gliner=True)
 
 
 def test_basic_masking(filter_instance):
@@ -20,7 +14,7 @@ def test_basic_masking(filter_instance):
     result = filter_instance.mask(text)
 
     assert isinstance(result, MaskingResult)
-    assert "<EMAIL_ADDRESS_1>" in result.masked_text
+    assert "{{__OWL:EMAIL_ADDRESS_1__}}" in result.masked_text
     assert "john@example.com" not in result.masked_text
     assert len(result.token_map) > 0
     assert result.session_id is not None
@@ -75,7 +69,6 @@ def test_selective_masking(filter_instance):
 
     # Email should be masked
     assert "john@example.com" not in result.masked_text
-    # But we're not checking if SSN is masked since it depends on detection
 
 
 def test_session_cleanup(filter_instance):
@@ -123,10 +116,10 @@ def test_llm_workflow(filter_instance):
 
     # Step 1: Mask
     mask_result = filter_instance.mask(user_input)
-    assert "<EMAIL_ADDRESS_1>" in mask_result.masked_text
+    assert "{{__OWL:EMAIL_ADDRESS_1__}}" in mask_result.masked_text
 
     # Step 2: Simulate LLM response referencing the token
-    llm_response = "I'll send confirmation to <EMAIL_ADDRESS_1>"
+    llm_response = "I'll send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}"
 
     # Step 3: De-mask
     demask_result = filter_instance.demask(
@@ -135,7 +128,7 @@ def test_llm_workflow(filter_instance):
     )
 
     assert "alice@company.com" in demask_result.original_text
-    assert "<EMAIL_ADDRESS_1>" not in demask_result.original_text
+    assert "{{__OWL:EMAIL_ADDRESS_1__}}" not in demask_result.original_text
 
 
 def test_token_uniqueness(filter_instance):
@@ -145,16 +138,16 @@ def test_token_uniqueness(filter_instance):
     result = filter_instance.mask(text)
 
     # Should have two different tokens
-    assert "<EMAIL_ADDRESS_1>" in result.masked_text
-    assert "<EMAIL_ADDRESS_2>" in result.masked_text
+    assert "{{__OWL:EMAIL_ADDRESS_1__}}" in result.masked_text
+    assert "{{__OWL:EMAIL_ADDRESS_2__}}" in result.masked_text
 
 
 def test_demask_with_direct_token_map(filter_instance):
     """Test de-masking with direct token map (without session)"""
-    masked_text = "Email <EMAIL_1> and call <PHONE_1>"
+    masked_text = "Email {{__OWL:EMAIL_1__}} and call {{__OWL:PHONE_1__}}"
     token_map = {
-        "<EMAIL_1>": "john@example.com",
-        "<PHONE_1>": "(555) 123-4567"
+        "{{__OWL:EMAIL_1__}}": "john@example.com",
+        "{{__OWL:PHONE_1__}}": "(555) 123-4567"
     }
 
     result = filter_instance.demask(masked_text, token_map=token_map)
@@ -165,10 +158,70 @@ def test_demask_with_direct_token_map(filter_instance):
 
 def test_demask_without_session_or_map_raises_error(filter_instance):
     """Test that de-masking without session or map raises error"""
-    masked_text = "Email <EMAIL_1>"
+    masked_text = "Email {{__OWL:EMAIL_1__}}"
 
     with pytest.raises(ValueError, match="Must provide either session_id or token_map"):
         filter_instance.demask(masked_text)
+
+
+# Custom session_id tests
+
+def test_custom_session_id(filter_instance):
+    """Test masking with custom session_id"""
+    text = "Email me at john@example.com"
+    custom_session_id = "my-custom-session-123"
+
+    result = filter_instance.mask(text, session_id=custom_session_id)
+
+    assert result.session_id == custom_session_id
+    assert custom_session_id in filter_instance.sessions
+    assert "{{__OWL:EMAIL_ADDRESS_1__}}" in result.masked_text
+
+
+def test_custom_session_id_demask(filter_instance):
+    """Test complete mask/demask flow with custom session_id"""
+    text = "Contact alice@company.com for help"
+    custom_session_id = "user-456-conv-789"
+
+    # Mask with custom session_id
+    mask_result = filter_instance.mask(text, session_id=custom_session_id)
+    assert mask_result.session_id == custom_session_id
+
+    # Demask using custom session_id
+    demask_result = filter_instance.demask(
+        mask_result.masked_text,
+        session_id=custom_session_id
+    )
+
+    assert demask_result.original_text == text
+    assert "alice@company.com" in demask_result.original_text
+
+
+def test_auto_generated_session_id(filter_instance):
+    """Test that session_id is auto-generated when not provided"""
+    text = "Email me at john@example.com"
+
+    result = filter_instance.mask(text)
+
+    # Should have a UUID-style session_id
+    assert result.session_id is not None
+    assert len(result.session_id) == 36  # UUID format: 8-4-4-4-12 = 36 chars
+    assert "-" in result.session_id
+
+
+def test_custom_session_id_with_selective_masking(filter_instance):
+    """Test custom session_id with selective entity masking"""
+    text = "Email: john@example.com, Phone: (555) 123-4567"
+    custom_session_id = "selective-mask-session"
+
+    result = filter_instance.mask(
+        text,
+        entities_to_mask=["EMAIL_ADDRESS"],
+        session_id=custom_session_id
+    )
+
+    assert result.session_id == custom_session_id
+    assert "john@example.com" not in result.masked_text
 
 
 # Integration tests (require GLiNER model to be loaded)
@@ -180,8 +233,7 @@ def test_detect_credit_card(filter_instance):
     result = filter_instance.mask(text)
 
     # Should detect credit card (if GLiNER is working)
-    # This is a basic check - actual detection depends on GLiNER
-    assert len(result.entities_found) >= 0  # May or may not detect
+    assert len(result.entities_found) >= 0
 
 
 @pytest.mark.slow

@@ -21,7 +21,7 @@ help:
 	@echo "  make shell       - Open shell in container"
 	@echo ""
 	@echo "Production:"
-	@echo "  make prod        - Run in production mode (with Redis)"
+	@echo "  make prod        - Run in production mode (with NATS)"
 	@echo "  make prod-build  - Build production image"
 	@echo "  make prod-stop   - Stop production containers"
 	@echo ""

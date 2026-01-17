@@ -37,7 +37,7 @@ class EntityType(str, Enum):
 
 class PiiMaskingStrategy(str, Enum):
     """Masking strategies"""
-    REPLACE = "REPLACE"           # <EMAIL_ADDRESS_1>
+    REPLACE = "REPLACE"           # {{__OWL:EMAIL_ADDRESS_1__}}
     FPE = "FPE"                   # Format-preserving encryption
     SYNTHETIC = "SYNTHETIC"        # Fake data
     REDACT = "REDACT"             # [REDACTED]

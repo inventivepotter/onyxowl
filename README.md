@@ -22,7 +22,7 @@ User Input (PII)
     ↓
 [GLiNER Detection] → Detect entities
     ↓
-[Hash Map Creation] → Token map: <EMAIL_1> → john@example.com
+[Hash Map Creation] → Token map: {{__OWL:EMAIL_1__}} → john@example.com
     ↓
 Masked Text → Send to LLM
     ↓
@@ -50,7 +50,7 @@ docker build -f docker/Dockerfile -t privacy-filter:latest .
 docker run -d -p 1001:1001 privacy-filter:latest
 ```
 
-**Benefits**: Pre-built image with all dependencies, ready to use! See [DOCKER.md](DOCKER.md) for details.
+**Benefits**: Pre-built image with all dependencies, ready to use! See [DOCKER.md](docs/DOCKER.md) for details.
 
 ### Option 2: Local Installation
 
@@ -75,18 +75,21 @@ from privacy_filter import PrivacyFilter
 # Initialize filter
 filter_instance = PrivacyFilter(use_gliner=True)
 
-# Mask text
+# Mask text (auto-generated session ID)
 text = "Email me at john@example.com or call (555) 123-4567"
 result = filter_instance.mask(text)
 
+# Or with custom session ID
+result = filter_instance.mask(text, session_id="my-custom-session-123")
+
 print(result.masked_text)
-# Output: "Email me at <EMAIL_ADDRESS_1> or call <PHONE_NUMBER_1>"
+# Output: "Email me at {{__OWL:EMAIL_ADDRESS_1__}} or call {{__OWL:PHONE_NUMBER_1__}}"
 
 print(result.token_map)
-# Output: {"<EMAIL_ADDRESS_1>": "john@example.com", "<PHONE_NUMBER_1>": "(555) 123-4567"}
+# Output: {"{{__OWL:EMAIL_ADDRESS_1__}}": "john@example.com", "{{__OWL:PHONE_NUMBER_1__}}": "(555) 123-4567"}
 
 # De-mask text
-llm_response = "I'll send confirmation to <EMAIL_ADDRESS_1>"
+llm_response = "I'll send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}"
 demasked = filter_instance.demask(llm_response, session_id=result.session_id)
 
 print(demasked.original_text)
@@ -123,9 +126,15 @@ uvicorn api.main:app --host 0.0.0.0 --port 1001
 
 **Mask Text**
 ```bash
+# Auto-generated session ID
 curl -X POST "http://localhost:1001/mask" \
   -H "Content-Type: application/json" \
   -d '{"text": "My email is john@example.com"}'
+
+# With custom session ID (useful for correlation)
+curl -X POST "http://localhost:1001/mask" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "My email is john@example.com", "session_id": "my-custom-session-123"}'
 ```
 
 **De-mask Text**
@@ -133,7 +142,7 @@ curl -X POST "http://localhost:1001/mask" \
 curl -X POST "http://localhost:1001/demask" \
   -H "Content-Type: application/json" \
   -d '{
-    "masked_text": "Send confirmation to <EMAIL_ADDRESS_1>",
+    "masked_text": "Send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}",
     "session_id": "your-session-id"
   }'
 ```
@@ -149,7 +158,7 @@ curl -X POST "http://localhost:1001/llm-flow" \
 curl -X POST "http://localhost:1001/llm-flow" \
   -H "Content-Type: application/json" \
   -d '{
-    "llm_response": "I will email <EMAIL_ADDRESS_1>",
+    "llm_response": "I will email {{__OWL:EMAIL_ADDRESS_1__}}",
     "session_id": "session-id-from-step-1"
   }'
 ```
@@ -177,7 +186,7 @@ masked_input = mask_response["masked_text"]
 session_id = mask_response["session_id"]
 
 print(f"Masked: {masked_input}")
-# Output: "My email is <EMAIL_ADDRESS_1> and I need help with my account"
+# Output: "My email is {{__OWL:EMAIL_ADDRESS_1__}} and I need help with my account"
 
 # Step 2: Send to LLM
 llm_response = openai_client.chat.completions.create(
@@ -186,7 +195,7 @@ llm_response = openai_client.chat.completions.create(
 ).choices[0].message.content
 
 print(f"LLM Response: {llm_response}")
-# LLM might say: "I can help! I'll send confirmation to <EMAIL_ADDRESS_1>"
+# LLM might say: "I can help! I'll send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}"
 
 # Step 3: De-mask LLM response
 demask_response = requests.post(
@@ -250,31 +259,136 @@ requests.delete(f"{BASE_URL}/session/{session_id}")
 
 ## 🎨 Advanced Features
 
-### Selective Masking
+### Custom Session ID
+
+You can provide your own session ID for correlation or predictable identifiers:
 
 ```python
-# Only mask specific entity types
+# Python
+result = filter_instance.mask(
+    text,
+    session_id="user-123-conversation-456"
+)
+# result.session_id == "user-123-conversation-456"
+```
+
+```bash
+# API
+curl -X POST "http://localhost:1001/mask" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Email me at john@example.com",
+    "session_id": "user-123-conversation-456"
+  }'
+```
+
+This is useful for:
+- **Correlation**: Link mask/demask operations across services
+- **Idempotency**: Use predictable IDs for retry logic
+- **Multi-turn conversations**: Maintain same session across messages
+
+### Selective Entity Masking
+
+By default, all supported entity types are masked. Use `entities_to_mask` to only mask specific types:
+
+**Python:**
+```python
+# Only mask emails and phone numbers, leave other PII visible
 result = filter_instance.mask(
     text,
     entities_to_mask=["EMAIL_ADDRESS", "PHONE_NUMBER"]
 )
+
+# Only mask financial data
+result = filter_instance.mask(
+    text,
+    entities_to_mask=["CREDIT_CARD", "IBAN_CODE", "US_SSN"]
+)
 ```
+
+**API:**
+```bash
+curl -X POST "http://localhost:1001/mask" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Contact john@example.com or call 555-1234. SSN: 123-45-6789",
+    "entities_to_mask": ["EMAIL_ADDRESS", "PHONE_NUMBER"]
+  }'
+# Result: SSN remains visible, only email and phone are masked
+```
+
+**Available Entity Types:**
+
+| Category | Entity Types |
+|----------|-------------|
+| Personal | `EMAIL_ADDRESS`, `PHONE_NUMBER`, `PERSON` |
+| Financial | `CREDIT_CARD`, `IBAN_CODE` |
+| National IDs | `US_SSN`, `UK_NINO`, `CANADIAN_SIN`, `AUSTRALIAN_TFN`, `INDIAN_AADHAAR`, `GERMAN_TAX_ID`, `FRENCH_INSEE` |
+| Crypto | `BITCOIN_ADDRESS`, `ETHEREUM_ADDRESS`, `LITECOIN_ADDRESS`, `DOGECOIN_ADDRESS`, `RIPPLE_ADDRESS`, `MONERO_ADDRESS` |
+| Secrets | `AWS_ACCESS_KEY_ID`, `API_KEY`, `PASSWORD`, `JWT_TOKEN` |
+| Other | `LOCATION`, `IP_ADDRESS`, `MEDICAL_LICENSE` |
+
+**Use Cases:**
+- Mask only financial data when processing payment-related queries
+- Keep names visible for personalization while masking contact info
+- Selectively mask based on compliance requirements (GDPR, HIPAA, PCI-DSS)
 
 ### Custom Token Format
 
-The default token format is `<ENTITY_TYPE_INDEX>`:
-- `<EMAIL_ADDRESS_1>`
-- `<PHONE_NUMBER_2>`
+The default token format is `{{__OWL:ENTITY_TYPE_INDEX__}}`:
+- `{{__OWL:EMAIL_ADDRESS_1__}}`
+- `{{__OWL:PHONE_NUMBER_2__}}`
 
 This format is:
 - **Unique**: Each entity gets a numbered token
-- **Readable**: Easy to understand what's masked
-- **Safe**: Won't conflict with normal text
+- **LLM-Safe**: Double curly braces + `OWL` prefix prevents LLM misinterpretation
+- **Parseable**: Easy regex pattern: `\{\{__OWL:[A-Z_]+_\d+__\}\}`
+- **Branded**: `OWL` prefix clearly identifies OnyxOwl tokens
+
+### Using Tokens with LLMs
+
+When integrating with LLMs, add this instruction to your system prompt to ensure tokens are preserved:
+
+```
+Strings matching {{__OWL:[A-Z_]+_\d+__}} are internal reference tokens.
+Preserve them exactly as-is. Do not attempt to resolve, substitute, or interpret their values.
+```
+
+**Why this pattern?**
+
+| Pattern | Problem |
+|---------|---------|
+| `[EMAIL_1]` | Looks like markdown links, citations |
+| `<EMAIL_1>` | Looks like XML/HTML tags |
+| `{EMAIL_1}` | Common in templating, may be interpreted |
+| `{{__OWL:EMAIL_1__}}` | Unique, branded, unambiguous |
+
+**Tool Integration Example:**
+
+When LLMs call tools with masked arguments, use the `/resolve` endpoint to get real values:
+
+```python
+# LLM wants to call: send_email(to={{__OWL:EMAIL_ADDRESS_1__}})
+# Before executing, resolve the token:
+
+response = requests.post(
+    f"{BASE_URL}/resolve",
+    json={
+        "session_id": session_id,
+        "tokens": ["{{__OWL:EMAIL_ADDRESS_1__}}"]
+    }
+)
+resolved = response.json()["resolved"]
+# resolved = {"{{__OWL:EMAIL_ADDRESS_1__}}": "john@example.com"}
+
+# Now call the tool with real value
+send_email(to=resolved["{{__OWL:EMAIL_ADDRESS_1__}}"])
+```
 
 ## 🔒 Security Considerations
 
 1. **Session Storage**: Token maps are stored in memory
-   - For production: Use Redis/database with encryption
+   - For production: Use NATS JetStream with encryption (see [NATS_SESSION_MANAGEMENT.md](docs/NATS_SESSION_MANAGEMENT.md))
    - Always clean up sessions after use
 
 2. **Token Maps**: Never log or expose token maps
@@ -351,7 +465,7 @@ pytest tests/test_crypto.py -v
 ### Docker Production (Recommended)
 
 ```bash
-# Start with Redis and multiple workers
+# Start with NATS and multiple workers
 make prod
 
 # Or using docker-compose
@@ -365,32 +479,36 @@ cd docker && docker-compose logs -f
 ```
 
 **Production features included**:
-- ✅ Redis session storage with TTL
+- ✅ NATS JetStream session storage with TTL
 - ✅ Multiple Uvicorn workers (4x throughput)
 - ✅ Health checks and auto-restart
 - ✅ Resource limits (CPU/memory)
 - ✅ Volume persistence for model cache
 
-See [DOCKER.md](DOCKER.md) for complete deployment guide.
+See [DOCKER.md](docs/DOCKER.md) for complete deployment guide.
 
 ### Manual Production Setup
 
-#### 1. Add Session Persistence (Redis)
+#### 1. Add Session Persistence (NATS JetStream)
+
+See [NATS_SESSION_MANAGEMENT.md](docs/NATS_SESSION_MANAGEMENT.md) for complete NATS integration guide.
 
 ```python
-import redis
+from nats_session_store import NATSSessionStore
 
 class PrivacyFilter:
     def __init__(self):
-        self.redis_client = redis.Redis(host='localhost', port=6379)
+        self.session_store = NATSSessionStore(
+            nats_url="nats://localhost:4222",
+            ttl_seconds=300  # 5 minute TTL
+        )
 
-    def mask(self, text):
+    async def mask(self, text):
         # ... existing code ...
-        # Store in Redis with expiration
-        self.redis_client.setex(
-            f"session:{session_id}",
-            300,  # 5 minute TTL
-            json.dumps(token_map)
+        # Store in NATS JetStream with expiration
+        await self.session_store.store_session(
+            session_id,
+            token_map
         )
 ```
 
@@ -429,7 +547,7 @@ async def mask_text(request: MaskRequest):
 - [x] Multi-country support (15+ countries)
 - [x] Docker deployment with production config
 - [x] Hybrid detection (GLiNER + regex)
-- [ ] Session expiration (TTL) with Redis
+- [x] Session expiration (TTL) with NATS JetStream
 - [ ] Authentication/authorization
 - [ ] Rate limiting
 - [ ] Monitoring/logging (Prometheus/Grafana)
@@ -459,7 +577,7 @@ async def mask_text(request: MaskRequest):
 # Build and run (development)
 make build && make run
 
-# Production with Redis
+# Production with NATS
 make prod
 
 # View all commands
@@ -472,7 +590,7 @@ make help
 docker/
 ├── Dockerfile                 # Multi-stage builder pattern
 ├── docker-compose.yml         # Development configuration
-├── docker-compose.prod.yml    # Production with Redis
+├── docker-compose.prod.yml    # Production with NATS
 └── .dockerignore              # Optimize build context
 
 Makefile                       # Convenient commands (root)
@@ -489,7 +607,7 @@ DOCKER.md                      # Complete Docker guide
 
 See [DOCKER.md](DOCKER.md) for complete deployment guide including:
 - Multi-stage build details
-- Production deployment with Redis
+- Production deployment with NATS
 - Kubernetes/Cloud deployment
 - Performance optimization
 - Security best practices
@@ -534,14 +652,14 @@ onyxowl/
 └── README.md                 # This file
 ```
 
-See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed documentation.
+See [PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md) for detailed documentation.
 
 ## 📚 References
 
 - [GLiNER Paper](https://arxiv.org/abs/2311.08526)
 - [Presidio Documentation](https://microsoft.github.io/presidio/)
-- [Project Structure](PROJECT_STRUCTURE.md)
-- [Docker Deployment Guide](DOCKER.md)
+- [Project Structure](docs/PROJECT_STRUCTURE.md)
+- [Docker Deployment Guide](docs/DOCKER.md)
 - [LLM Security Ideas](LLM_SECURITY_IDEAS.md)
 
 ## 📄 License

@@ -44,3 +44,6 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "crypto: cryptocurrency address detection tests"
     )
+    config.addinivalue_line(
+        "markers", "nats: marks tests that require NATS server (skip with '-m \"not nats\"')"
+    )

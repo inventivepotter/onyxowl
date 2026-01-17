@@ -18,7 +18,15 @@ from .models import (
     PiiMaskingStrategy,
 )
 from .gliner_engine import GLiNERPresidioEngine
-from .nats_store import NATSSessionStore, get_nats_store
+
+# Optional NATS support
+try:
+    from .nats_store import NATSSessionStore, get_nats_store
+    _NATS_AVAILABLE = True
+except ImportError:
+    NATSSessionStore = None
+    get_nats_store = None
+    _NATS_AVAILABLE = False
 
 __all__ = [
     "PrivacyFilter",

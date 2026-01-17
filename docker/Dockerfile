@@ -80,8 +80,8 @@ ENV PATH="/opt/venv/bin:$PATH" \
     LOG_LEVEL=info
 
 # Copy application code
-COPY --chown=appuser:appuser privacy_filter.py .
-COPY --chown=appuser:appuser api_endpoint.py .
+COPY --chown=appuser:appuser src/ ./src/
+COPY --chown=appuser:appuser api/ ./api/
 
 # Switch to non-root user
 USER appuser
@@ -94,4 +94,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:1001/health')" || exit 1
 
 # Run the application
-CMD ["python", "-m", "uvicorn", "api_endpoint:app", "--host", "0.0.0.0", "--port", "1001"]
+CMD ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "1001"]

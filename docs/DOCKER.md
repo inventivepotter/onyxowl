@@ -214,7 +214,7 @@ make prod
 
 ### Production Features
 
-1. **Redis Session Storage**
+1. **NATS JetStream Session Storage**
    - Persistent session data
    - Shared across multiple instances
    - TTL-based expiration
@@ -289,8 +289,8 @@ nano .env
 | `PORT` | `1001` | API port |
 | `WORKERS` | `1` | Uvicorn workers |
 | `LOG_LEVEL` | `info` | Logging level |
-| `USE_REDIS` | `false` | Enable Redis |
-| `REDIS_HOST` | `localhost` | Redis hostname |
+| `USE_NATS` | `false` | Enable NATS |
+| `NATS_URL` | `nats://localhost:4222` | NATS server URL |
 | `SESSION_TTL` | `300` | Session expiration (seconds) |
 
 ### Docker Compose Override
@@ -448,16 +448,18 @@ docker run -e WORKERS=4 privacy-filter:latest
 
 **Benefits**: Better concurrency (4 workers = ~4x throughput)
 
-### 4. Redis Session Storage
+### 4. NATS JetStream Session Storage
 
 ```yaml
 services:
-  redis:
-    image: redis:7-alpine
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+  nats:
+    image: nats:2-alpine
+    command: -js -sd /data
+    volumes:
+      - nats-data:/data
 ```
 
-**Benefits**: Persistent sessions, shared across instances
+**Benefits**: Persistent sessions, shared across instances, built-in streaming
 
 ## 🔒 Security Best Practices
 

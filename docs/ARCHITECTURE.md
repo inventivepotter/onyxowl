@@ -207,7 +207,7 @@ Final Response: "I'll send confirmation to alice@company.com"
 - No expiration (manual cleanup required)
 
 **Production Recommendations**:
-- Use Redis with TTL (5-15 minutes)
+- Use NATS JetStream with TTL (5-15 minutes)
 - Encrypt token maps at rest
 - Implement session cleanup background task
 
@@ -226,20 +226,26 @@ Final Response: "I'll send confirmation to alice@company.com"
 
 **Current**: In-memory (development only)
 
-**Production**: Redis with encryption
+**Production**: NATS JetStream with encryption
+
+See [NATS_SESSION_MANAGEMENT.md](NATS_SESSION_MANAGEMENT.md) for complete implementation.
+
 ```python
-import redis
+from nats_session_store import NATSSessionStore
 from cryptography.fernet import Fernet
 
-redis_client = redis.Redis(host='localhost', port=6379)
+session_store = NATSSessionStore(
+    nats_url="nats://localhost:4222",
+    ttl_seconds=300
+)
 cipher = Fernet(encryption_key)
 
 # Store
 encrypted_map = cipher.encrypt(json.dumps(token_map).encode())
-redis_client.setex(f"session:{session_id}", 300, encrypted_map)
+await session_store.store_session(session_id, encrypted_map)
 
 # Retrieve
-encrypted_map = redis_client.get(f"session:{session_id}")
+encrypted_map = await session_store.get_session(session_id)
 token_map = json.loads(cipher.decrypt(encrypted_map).decode())
 ```
 
@@ -323,12 +329,12 @@ Load Balancer
       ├─ API Server 2 (GLiNER + Filter)
       └─ API Server 3 (GLiNER + Filter)
               │
-              └─ Redis Cluster (Session Storage)
+              └─ NATS Cluster (Session Storage)
 ```
 
 **Considerations**:
 - Each server loads GLiNER (400MB RAM)
-- Shared Redis for session storage
+- Shared NATS for session storage
 - Stateless API servers
 - Linear scaling (1000 req/s per server)
 

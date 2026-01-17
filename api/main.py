@@ -16,10 +16,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from fastapi import FastAPI, HTTPException, Depends
 from pydantic import BaseModel, Field
 from privacy_filter import PrivacyFilter
-from privacy_filter.nats_store import NATSSessionStore, get_nats_store
 
-# Check if NATS is enabled
-NATS_ENABLED = os.getenv("NATS_URL") is not None
+# Optional NATS support
+try:
+    from privacy_filter.nats_store import NATSSessionStore, get_nats_store
+    NATS_AVAILABLE = True
+except ImportError:
+    NATSSessionStore = None
+    get_nats_store = None
+    NATS_AVAILABLE = False
+
+# Check if NATS is enabled (requires both package and env var)
+NATS_ENABLED = NATS_AVAILABLE and os.getenv("NATS_URL") is not None
 
 
 @asynccontextmanager
@@ -59,6 +67,10 @@ class MaskRequest(BaseModel):
         None,
         description="List of entity types to mask (None = all)",
         example=["EMAIL_ADDRESS", "PHONE_NUMBER", "CREDIT_CARD"]
+    )
+    session_id: Optional[str] = Field(
+        None,
+        description="Optional session ID (auto-generated if not provided)"
     )
 
 
@@ -129,7 +141,11 @@ async def mask_text(
     When NATS is enabled, sessions are stored with automatic TTL.
     """
     try:
-        result = filter_instance.mask(request.text, request.entities_to_mask)
+        result = filter_instance.mask(
+            request.text,
+            request.entities_to_mask,
+            session_id=request.session_id,
+        )
 
         # Store in NATS if available
         if store:
@@ -199,8 +215,8 @@ async def resolve_tokens(
     real values for masked tokens in tool arguments.
 
     Example:
-        Request: {"session_id": "abc-123", "tokens": ["<EMAIL_ADDRESS_1>", "<PHONE_NUMBER_1>"]}
-        Response: {"resolved": {"<EMAIL_ADDRESS_1>": "john@example.com", "<PHONE_NUMBER_1>": "555-1234"}}
+        Request: {"session_id": "abc-123", "tokens": ["{{__OWL:EMAIL_ADDRESS_1__}}", "{{__OWL:PHONE_NUMBER_1__}}"]}
+        Response: {"resolved": {"{{__OWL:EMAIL_ADDRESS_1__}}": "john@example.com", "{{__OWL:PHONE_NUMBER_1__}}": "555-1234"}}
     """
     try:
         if store:

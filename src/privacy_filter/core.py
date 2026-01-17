@@ -40,6 +40,13 @@ class PrivacyFilter:
         # Session storage: session_id -> token_map
         self.sessions: Dict[str, Dict[str, str]] = {}
 
+    # Token pattern: {{__OWL:TYPE_INDEX__}}
+    # - OWL prefix identifies tokens as OnyxOwl placeholders
+    # - Double underscores and curly braces prevent LLM misinterpretation
+    # - Pattern regex: \{\{__OWL:[A-Z_]+_\d+__\}\}
+    TOKEN_PREFIX = "{{__OWL:"
+    TOKEN_SUFFIX = "__}}"
+
     def _generate_token(self, entity_type: str, index: int) -> str:
         """
         Generate a unique masked token
@@ -49,22 +56,29 @@ class PrivacyFilter:
             index: Index of this entity in the text
 
         Returns:
-            Masked token like <EMAIL_ADDRESS_1>
+            Masked token like {{__OWL:EMAIL_ADDRESS_1__}}
         """
-        return f"<{entity_type}_{index}>"
+        return f"{self.TOKEN_PREFIX}{entity_type}_{index}{self.TOKEN_SUFFIX}"
 
-    def mask(self, text: str, entities_to_mask: Optional[List[str]] = None) -> MaskingResult:
+    def mask(
+        self,
+        text: str,
+        entities_to_mask: Optional[List[str]] = None,
+        session_id: Optional[str] = None,
+    ) -> MaskingResult:
         """
         Mask sensitive entities in text and create reversible token map
 
         Args:
             text: Input text to mask
             entities_to_mask: List of entity types to mask (None = all)
+            session_id: Optional session ID (auto-generated if not provided)
 
         Returns:
             MaskingResult with masked text and token map
         """
-        session_id = str(uuid.uuid4())
+        if session_id is None:
+            session_id = str(uuid.uuid4())
 
         # Detect entities using GLiNER
         if self.use_gliner:

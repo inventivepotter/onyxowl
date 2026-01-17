@@ -70,9 +70,9 @@ def example_llm_workflow():
 
     # Step 3: Simulate LLM response (LLM might reference the masked tokens)
     llm_response = f"""
-    I can help you with that! I see the issue with <EMAIL_ADDRESS_1>.
-    Let me check the charges on card <CREDIT_CARD_1> for you.
-    I'll send you an email confirmation to <EMAIL_ADDRESS_1> shortly.
+    I can help you with that! I see the issue with {{__OWL:EMAIL_ADDRESS_1__}}.
+    Let me check the charges on card {{__OWL:CREDIT_CARD_1__}} for you.
+    I'll send you an email confirmation to {{__OWL:EMAIL_ADDRESS_1__}} shortly.
     """
 
     print(f"\n[LLM Response with Tokens]:\n{llm_response}")
@@ -136,12 +136,12 @@ curl -X POST "http://localhost:1001/mask" \\
 
 # Response:
 # {
-#   "masked_text": "Email me at <EMAIL_ADDRESS_1> or call <PHONE_NUMBER_1>",
+#   "masked_text": "Email me at {{__OWL:EMAIL_ADDRESS_1__}} or call {{__OWL:PHONE_NUMBER_1__}}",
 #   "session_id": "abc-123-def-456",
 #   "entities_found": 2,
 #   "token_map": {
-#     "<EMAIL_ADDRESS_1>": "john@example.com",
-#     "<PHONE_NUMBER_1>": "(555) 123-4567"
+#     "{{__OWL:EMAIL_ADDRESS_1__}}": "john@example.com",
+#     "{{__OWL:PHONE_NUMBER_1__}}": "(555) 123-4567"
 #   }
 # }
 
@@ -149,7 +149,7 @@ curl -X POST "http://localhost:1001/mask" \\
 curl -X POST "http://localhost:1001/demask" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "masked_text": "Send confirmation to <EMAIL_ADDRESS_1>",
+    "masked_text": "Send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}",
     "session_id": "abc-123-def-456"
   }'
 
@@ -171,7 +171,7 @@ curl -X POST "http://localhost:1001/llm-flow" \\
 curl -X POST "http://localhost:1001/llm-flow" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "llm_response": "I will send confirmation to <EMAIL_ADDRESS_1>",
+    "llm_response": "I will send confirmation to {{__OWL:EMAIL_ADDRESS_1__}}",
     "session_id": "abc-123-def-456"
   }'
 
@@ -208,7 +208,7 @@ masked_input = mask_data['masked_text']
 session_id = mask_data['session_id']
 
 # Simulate LLM response
-llm_response = f"I've updated <EMAIL_ADDRESS_1> and verified <CREDIT_CARD_1>"
+llm_response = f"I've updated {{__OWL:EMAIL_ADDRESS_1__}} and verified {{__OWL:CREDIT_CARD_1__}}"
 
 # 3. De-mask LLM response
 demask_response = requests.post(
