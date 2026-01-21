@@ -785,20 +785,106 @@ async def test_full_session_lifecycle(nats_store):
 
 ## Security Considerations
 
-### 1. Encryption at Rest
+### 1. Application-Level Encryption (KDF-based)
 
-NATS JetStream stores data in memory or on disk. For sensitive data:
+The Privacy Filter includes built-in KDF-based encryption with automatic 24-hour key rotation. This provides encryption at rest independent of NATS configuration.
+
+#### How It Works
+
+```
+Master Key (ENCRYPTION_MASTER_KEY)
+        │
+        ▼
+   ┌─────────────────────────────────────────┐
+   │              HKDF Derivation            │
+   │   derive(master_key, time_period)       │
+   │   period = unix_time // 86400 (24hrs)   │
+   └─────────────────────────────────────────┘
+        │
+        ▼
+   Derived Key (changes every 24 hours)
+        │
+        ▼
+   Fernet Encryption (AES-128-CBC + HMAC-SHA256)
+        │
+        ▼
+   Encrypted Token Map → NATS KV Store
+```
+
+#### Enable Encryption
+
+```bash
+# Generate a master key
+python -c "from privacy_filter.nats_store import KDFEncryption; print(KDFEncryption.generate_master_key())"
+
+# Add to .env
+ENCRYPTION_MASTER_KEY=your-generated-key-here
+```
+
+#### Automatic Rotation
+
+- Derived keys rotate automatically every 24 hours
+- No manual intervention required for routine rotation
+- Decryption automatically tries current and previous period
+
+#### Emergency Key Rotation (Compromise)
+
+If the master key is compromised:
+
+```bash
+# 1. Generate new master key
+python -c "from privacy_filter.nats_store import KDFEncryption; print(KDFEncryption.generate_master_key())"
+
+# 2. Update .env - keep OLD key as PREVIOUS
+ENCRYPTION_MASTER_KEY=new-key-here
+ENCRYPTION_MASTER_KEY_PREVIOUS=old-compromised-key-here
+
+# 3. Restart all instances
+docker-compose restart
+
+# 4. Wait 15 minutes (session TTL)
+# All sessions encrypted with old key will expire naturally
+
+# 5. Remove previous key from .env
+ENCRYPTION_MASTER_KEY=new-key-here
+# ENCRYPTION_MASTER_KEY_PREVIOUS=  (remove or comment out)
+
+# 6. Restart all instances
+docker-compose restart
+```
+
+#### Why 15-Minute TTL Matters
+
+The maximum session TTL of 15 minutes enables simple key rotation:
+- New sessions use new key
+- Old sessions expire within 15 minutes
+- No need to re-encrypt existing data
+- Previous key only needed during transition window
+
+#### Security Properties
+
+| Property | Status | Notes |
+|----------|--------|-------|
+| Encryption at rest | ✅ Yes | AES-128-CBC via Fernet |
+| Automatic rotation | ✅ Yes | Every 24 hours |
+| Emergency rotation | ✅ Yes | Dual-key window (15 min) |
+| Forward secrecy | ❌ No | Master key derives all keys |
+| Key derivation | ✅ HKDF-SHA256 | ~5μs latency |
+
+### 2. NATS-Level Encryption (Optional, Additional Layer)
+
+For defense in depth, you can also enable NATS-level encryption:
 
 ```yaml
 # nats-server.conf
 jetstream {
   store_dir: /data
-  cipher: aes  # Enable encryption
+  cipher: aes  # Enable NATS encryption
   key: $NATS_ENCRYPTION_KEY
 }
 ```
 
-### 2. TLS in Transit
+### 3. TLS in Transit
 
 ```yaml
 # docker-compose.yml
@@ -810,7 +896,7 @@ nats:
     - "--tlskey=/certs/server.key"
 ```
 
-### 3. Authentication
+### 4. Authentication
 
 ```python
 # Connect with credentials
@@ -821,7 +907,7 @@ nc = await nats.connect(
 )
 ```
 
-### 4. Authorization
+### 5. Authorization
 
 Use NATS accounts to isolate services:
 
@@ -836,6 +922,17 @@ accounts {
   }
 }
 ```
+
+### Compliance Summary
+
+With KDF encryption enabled:
+
+| Regulation | Encryption Requirement | Status |
+|------------|------------------------|--------|
+| GDPR | Encryption at rest | ✅ Met |
+| GDPR | Breach notification exemption | ✅ Eligible (if key not compromised) |
+| SOC 2 | Data encryption | ✅ Met |
+| HIPAA | Encryption at rest | ✅ Met (but not true de-identification) |
 
 ## Migration from Redis
 

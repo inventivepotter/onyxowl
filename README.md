@@ -2,6 +2,8 @@
 
 Production-ready privacy filter with **reversible masking** using hash maps. Masks PII before sending to LLM, then de-masks the response.
 
+**Why not guardrails?** Traditional guardrails either permanently redact PII (losing information) or block requests entirely. This service preserves user experience by masking input to the LLM and de-masking the response — no data loss, no blocked requests. Can be deployed at the AI gateway level for best results.
+
 [![Tests](https://img.shields.io/badge/tests-610%2B%20passing-brightgreen)]() [![Coverage](https://img.shields.io/badge/coverage-comprehensive-blue)]() [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]() [![Docker](https://img.shields.io/badge/docker-ready-blue)]()
 
 **Quick Stats**: 610+ test cases | 70+ entity types | 15+ countries | Hybrid ML + Regex detection
