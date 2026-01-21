@@ -156,8 +156,9 @@ GLiNER does zero-shot entity recognition — no training needed for custom entit
 
 - [GLiNER Paper](https://arxiv.org/abs/2311.08526)
 - [Presidio Documentation](https://microsoft.github.io/presidio/)
-- [Project Structure](docs/PROJECT_STRUCTURE.md)
 - [Docker Guide](docs/DOCKER.md)
+- [NATS Session Management](docs/NATS_SESSION_MANAGEMENT.md)
+- [Architecture](docs/ARCHITECTURE.md)
 
 ## License
 
